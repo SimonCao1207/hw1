@@ -19,15 +19,22 @@ def ECE(pred_logits, y, num_bins=20):
 
     pred_py = torch.softmax(pred_logits, -1)
     confidence = pred_py.max(-1)[0]
-    bdrs = torch.linspace(0.0, 1.0, num_bins).to(pred_logits.device)
-    bins = torch.bucketize(confidence, bdrs)
+    bdrs = torch.linspace(0.0, 1.0, num_bins + 1).to(pred_logits.device)
+    bins = torch.bucketize(confidence, bdrs[1:-1])
 
-    ece = 0.0
+    ece = torch.zeros((), device=pred_logits.device)
     for b in range(num_bins):
 
         # fill in the blank
         #####################################################################################
-     
+        pred_y = pred_py.argmax(-1)
+        accuracy = (pred_y == y).float()
+        mask = bins == b
+        if mask.any():
+            bin_prob = mask.float().mean()
+            bin_conf = confidence[mask].mean()
+            bin_acc = accuracy[mask].mean()
+            ece += bin_prob * (bin_acc - bin_conf).abs()
         #####################################################################################
 
     return ece
@@ -51,7 +58,13 @@ def OOD_AUROC(id_pred_logits, ood_pred_logits):
     # see the documentation for roc_auc_score function 
     # (https://scikit-learn.org/stable/modules/generated/sklearn.metrics.roc_auc_score.html)
     #####################################################################################
-     
+    y_true = torch.cat(
+        [
+            torch.zeros_like(id_entropy, dtype=torch.long),
+            torch.ones_like(ood_entropy, dtype=torch.long),
+        ]
+    ).cpu().numpy()
+    y_score = torch.cat([id_entropy, ood_entropy]).cpu().numpy()
     #####################################################################################
 
     return roc_auc_score(y_true, y_score)
