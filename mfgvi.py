@@ -35,7 +35,19 @@ class MFGLinear(nn.Linear):
             # forward pass via local reparameterization trick
             # fill in the blank
             #####################################################################################
+            if num_samples > 1 and input.ndim == 2:
+                input = torch.stack([input] * num_samples)
 
+            weight_var = torch.exp(self.weight_logvar)
+            output_mean = input @ self.weight.transpose(-2, -1)
+            output_var = input.pow(2) @ weight_var.transpose(-2, -1)
+
+            if self.bias is not None:
+                output_mean = output_mean + self.bias
+                output_var = output_var + torch.exp(self.bias_logvar)
+
+            output_std = torch.sqrt(output_var + 1.0e-8)
+            return output_mean + output_std * torch.randn_like(output_mean)
             #####################################################################################
 
         else:
@@ -72,7 +84,11 @@ class MFGLinear(nn.Linear):
             
             # fill in the blank
             #####################################################################################
-
+            return torch.sum(
+                torch.log(prior_std / sigma)
+                + (sigma.pow(2) + mu.pow(2)) / (2.0 * prior_std**2)
+                - 0.5
+            )
             #####################################################################################
 
         weight_kld = kld_(self.weight, torch.exp(0.5 * self.weight_logvar))
