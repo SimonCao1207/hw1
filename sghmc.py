@@ -64,8 +64,20 @@ class SGHMC(Optimizer):
                 state["step"] += 1
                 # fill in the blank
                 #####################################################################################
-                
+                with torch.no_grad():
+                    grad = n * (param.grad + wd * param)
+                    noise = torch.randn_like(param) * np.sqrt(
+                        2.0 * friction * T * h
+                    )
+
+                    state["momentum"].mul_(group["momentum_decay"])
+                    state["momentum"].add_(grad, alpha=-h)
+                    state["momentum"].add_(noise)
+
+                    param.add_(state["momentum"], alpha=h)
                 #####################################################################################
+
+        return loss
 
 #### copied from https://github.com/abhuse/cyclic-cosine-decay/blob/master/scheduler.py ######
 
@@ -201,7 +213,7 @@ class CyclicCosineDecayLR(_LRScheduler):
         self._restart_interval = restart_interval
         self._restart_interval_multiplier = restart_interval_multiplier
         super(CyclicCosineDecayLR, self).__init__(
-            optimizer, last_epoch, verbose=verbose
+            optimizer, last_epoch
         )
 
     def get_lr(self):
